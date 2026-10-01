@@ -1,0 +1,105 @@
+# Minimal working configuration for an ESP32 + CC1101 Nartis RF433 reader.
+#
+# Adjust the pins to your board, and take meter_serial from the meter nameplate.
+
+esphome:
+  name: nartis-rf433-cc1101
+  friendly_name: Nartis RF433 Reader (CC1101)
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf        # required: the vendored CC1101 driver is an ESP-IDF component
+
+logger:
+
+api:
+  encryption:
+    key: !secret esphome_api_key
+
+ota:
+  platform: esphome
+
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [nartis_rf_meter]
+
+nartis_rf_meter:
+  id: nartis
+
+  # CC1101 module wiring (see README for the pin table)
+  pin_sdio: 19          # SO  / MISO
+  pin_sclk: 18          # SCK
+  pin_csb: 5            # CSN
+  pin_fcsb: 23          # SI  / MOSI
+  pin_gpio3: 4          # GDO0 - must be interrupt capable
+
+  # 12 digits from the meter nameplate
+  meter_serial: "000000000000"
+
+  # The meter's measured reply carriers, not the CMT2300A LO table (see README)
+  use_alternative_channels: true
+
+  # Pin the reply channel: 0 = 433.820 MHz, the same carrier the probe is sent on
+  fix_channel: 0
+
+  # The meter accepts at most 10 attributes per get-request-with-list
+  batch_size: 10
+
+  # A read cycle takes 7..30 s; upstream recommends no more than one per 5 min
+  update_interval: 10min
+
+sensor:
+  - platform: nartis_rf_meter
+    name: "Energy Total"
+    obis_code: "1.0.1.8.0.255"
+    unit_of_measurement: kWh
+    accuracy_decimals: 3
+    device_class: energy
+    state_class: total_increasing
+    filters:
+      - multiply: 0.001          # raw unit is Wh
+
+  - platform: nartis_rf_meter
+    name: "Active Power"
+    obis_code: "1.0.1.7.0.255"
+    unit_of_measurement: W
+    accuracy_decimals: 1
+    device_class: power
+    state_class: measurement
+
+  - platform: nartis_rf_meter
+    name: "Voltage A"
+    obis_code: "1.0.32.7.0.255"
+    unit_of_measurement: V
+    accuracy_decimals: 1
+    device_class: voltage
+    state_class: measurement
+    filters:
+      - multiply: 0.1
+
+  - platform: nartis_rf_meter
+    name: "Current A"
+    obis_code: "1.0.31.7.0.255"
+    unit_of_measurement: A
+    accuracy_decimals: 3
+    device_class: current
+    state_class: measurement
+    filters:
+      - multiply: 0.001
+
+  - platform: nartis_rf_meter
+    name: "Line Frequency"
+    obis_code: "1.0.14.7.0.255"
+    unit_of_measurement: Hz
+    accuracy_decimals: 2
+    device_class: frequency
+    state_class: measurement
+    filters:
+      - multiply: 0.01
+
+button:
+  - platform: nartis_rf_meter
+    name: "Re-pair"
